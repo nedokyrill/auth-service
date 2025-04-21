@@ -1,9 +1,16 @@
 package app
 
 import (
-	"database/sql"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/nedokyrill/auth-service/internal/handlers/authHandler"
+	"github.com/nedokyrill/auth-service/internal/repository/authRepository"
+	"github.com/nedokyrill/auth-service/internal/repository/userRepository"
+	"github.com/nedokyrill/auth-service/internal/service/authService"
+	"github.com/nedokyrill/auth-service/pkg/utils"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 	"log"
 	"os"
 )
@@ -19,25 +26,30 @@ func Run() {
 		os.Getenv("DB_NAME"), os.Getenv("DB_PORT"),
 	)
 
-	_, err := sql.Open("postgres", dsn)
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		log.Fatal("Error with connection to database: ", err)
+		log.Fatalf("failed to connect to the database: %v", err)
 	}
-	log.Println("Connected to database successfully", os.Getenv("DATABASE_URL"))
+	log.Println("Successfully connected to the database")
 
 	//repo
+	authRepo := authRepository.NewAuthRepository(db)
+	userRepo := userRepository.NewUserRepository(db)
 
 	//service
+	authServ := authService.NewAuthService(authRepo, userRepo)
 
 	//handler
-	//
-	////default route
-	//router := gin.Default()
-	//api := router.Group("/api/v1/")
-	//
-	////REGISTER_ROUTES
-	//
-	//server := Utils.NewServer(os.Getenv("ADDR"), router)
-	//log.Println("Server success running on port: ", os.Getenv("ADDR"))
-	//Utils.Start(server)
+	authHand := authHandler.NewAuthHandler(authServ)
+
+	//default route
+	router := gin.Default()
+	api := router.Group("/api/v1/")
+
+	//REGISTER_ROUTES
+	authHand.RegisterRoutes(api)
+
+	server := utils.NewAPIServer(os.Getenv("ADDR"), router)
+	log.Println("Server success running on port: ", os.Getenv("ADDR"))
+	utils.Start(server)
 }
